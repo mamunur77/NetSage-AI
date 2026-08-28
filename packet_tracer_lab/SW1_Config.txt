@@ -1,0 +1,56 @@
+! ============================================================
+!  SW1 "BROKEN" Configuration — Contains 2 deliberate faults
+!  Each fault maps to a real case in data/cases.csv
+! ============================================================
+
+enable
+configure terminal
+hostname SW1
+
+! 1. Create VLANs
+vlan 10
+ name Sales
+vlan 20
+ name Engineering
+vlan 30
+ name Guest
+vlan 40
+ name Management
+exit
+
+! 2. Access Ports — Sales VLAN 10
+interface range fa0/2-5
+ switchport mode access
+ switchport access vlan 10
+ spanning-tree portfast
+
+! 3. Access Ports — Engineering VLAN 20
+interface range fa0/6-10
+ switchport mode access
+ switchport access vlan 20
+ spanning-tree portfast
+
+! 4. Access Ports — Guest VLAN 30
+interface range fa0/11-15
+ switchport mode access
+ switchport access vlan 30
+ spanning-tree portfast
+
+!    BUG 4 (maps to Case C002): PC port left in DEFAULT VLAN 1
+!    Fa0/16 should be in VLAN 20 but is still in VLAN 1 (default)
+!    Expected diagnosis: "Port is in VLAN 1 instead of VLAN 20"
+interface fa0/16
+ switchport mode access
+ description Should_be_VLAN20_but_left_default
+
+! 5. Trunk Port to Router
+!    BUG 5 (maps to Case C001): VLAN 10 NOT ALLOWED on trunk
+!    Trunk only allows 20,30,40 — VLAN 10 traffic gets dropped
+!    Expected diagnosis: "VLAN 10 not in trunk allowed list"
+interface gi0/1
+ switchport mode trunk
+ switchport trunk allowed vlan 20,30,40
+ description Uplink_to_Router
+exit
+
+write memory

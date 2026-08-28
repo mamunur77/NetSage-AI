@@ -1,0 +1,57 @@
+! R1 Router-on-a-Stick Configuration
+! This is the WORKING version. The "broken" configs below introduce faults.
+
+enable
+configure terminal
+hostname R1
+
+! 1. Physical interface connecting to SW1 trunk
+interface GigabitEthernet0/0
+ no shutdown
+
+! 2. Subinterfaces for each VLAN
+interface GigabitEthernet0/0.10
+ encapsulation dot1Q 10
+ ip address 192.168.10.1 255.255.255.0
+ description Sales_Gateway
+ no shutdown
+
+interface GigabitEthernet0/0.20
+ encapsulation dot1Q 20
+ ip address 192.168.20.1 255.255.255.0
+ description Engineering_Gateway
+ no shutdown
+
+interface GigabitEthernet0/0.30
+ encapsulation dot1Q 30
+ ip address 192.168.30.1 255.255.255.0
+ description Guest_Gateway
+ no shutdown
+
+interface GigabitEthernet0/0.40
+ encapsulation dot1Q 40
+ ip address 192.168.40.1 255.255.255.0
+ description Management_Gateway
+ no shutdown
+
+! 3. DHCP Pools
+ip dhcp excluded-address 192.168.10.1 192.168.10.10
+ip dhcp pool SALES
+ network 192.168.10.0 255.255.255.0
+ default-router 192.168.10.1
+ dns-server 8.8.8.8
+
+ip dhcp excluded-address 192.168.20.1 192.168.20.10
+ip dhcp pool ENGINEERING
+ network 192.168.20.0 255.255.255.0
+ default-router 192.168.20.1
+ dns-server 8.8.8.8
+
+ip dhcp excluded-address 192.168.30.1 192.168.30.10
+ip dhcp pool GUEST
+ network 192.168.30.0 255.255.255.0
+ default-router 192.168.30.1
+ dns-server 8.8.8.8
+
+end
+write memory

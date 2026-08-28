@@ -1,0 +1,72 @@
+! ============================================================
+!  R1 "BROKEN" Configuration — Contains 5 deliberate faults
+!  Each fault maps to a real case in data/cases.csv
+! ============================================================
+
+enable
+configure terminal
+hostname R1
+
+! ── Physical interface ────────────────────────────────────────
+interface GigabitEthernet0/0
+ no shutdown
+
+! ── Subinterface for VLAN 10 (Sales) ─────────────────────────
+!    WORKING — no fault here
+interface GigabitEthernet0/0.10
+ encapsulation dot1Q 10
+ ip address 192.168.10.1 255.255.255.0
+ no shutdown
+
+! ── Subinterface for VLAN 20 (Engineering) ────────────────────
+!    WORKING — no fault here
+interface GigabitEthernet0/0.20
+ encapsulation dot1Q 20
+ ip address 192.168.20.1 255.255.255.0
+ no shutdown
+
+! ── Subinterface for VLAN 30 (Guest) ─────────────────────────
+!    WORKING — no fault here
+interface GigabitEthernet0/0.30
+ encapsulation dot1Q 30
+ ip address 192.168.30.1 255.255.255.0
+ no shutdown
+
+! ── Subinterface for VLAN 40 (Management) ─────────────────────
+!    BUG 1 (maps to Case C006): Subinterface is SHUT DOWN
+!    The gateway for VLAN 40 is administratively down.
+!    Expected diagnosis: "G0/0.40 is administratively down"
+interface GigabitEthernet0/0.40
+ encapsulation dot1Q 40
+ ip address 192.168.40.1 255.255.255.0
+ shutdown
+
+! ── DHCP Pools ────────────────────────────────────────────────
+
+ip dhcp excluded-address 192.168.10.1 192.168.10.10
+ip dhcp pool SALES
+ network 192.168.10.0 255.255.255.0
+ default-router 192.168.10.1
+ dns-server 8.8.8.8
+
+ip dhcp excluded-address 192.168.20.1 192.168.20.10
+
+!    BUG 2 (maps to Case C010): DHCP pool has WRONG subnet mask
+!    Pool uses /25 instead of /24, so clients get 192.168.20.x/25
+!    Expected diagnosis: "DHCP pool mask mismatch"
+ip dhcp pool ENGINEERING
+ network 192.168.20.0 255.255.255.128
+ default-router 192.168.20.1
+ dns-server 8.8.8.8
+
+ip dhcp excluded-address 192.168.30.1 192.168.30.10
+ip dhcp pool GUEST
+ network 192.168.30.0 255.255.255.0
+ default-router 192.168.30.1
+!    BUG 3 (maps to Case C013): DNS server points to WRONG IP
+!    172.16.1.99 doesn't exist — should be 8.8.8.8
+!    Expected diagnosis: "DNS server unreachable"
+ dns-server 172.16.1.99
+
+end
+write memory
