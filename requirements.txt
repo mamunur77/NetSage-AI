@@ -1,2 +1,5 @@
 groq
 openpyxl
+streamlit
+plotly
+pandas

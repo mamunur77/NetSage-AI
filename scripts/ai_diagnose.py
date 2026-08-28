@@ -196,17 +196,37 @@ def main():
             messages = FEWSHOT + [{"role": "user", "content": build_user_message(row)}]
 
             try:
-                resp = client.chat.completions.create(
-                    model=MODEL,
-                    max_tokens=1000,
-                    messages=[{"role": "system", "content": SYSTEM_PROMPT}] + messages,
-                    temperature=0,
-                    response_format={"type": "json_object"},
-                )
-                text = resp.choices[0].message.content or ""
+                try:
+                    resp = client.chat.completions.create(
+                        model=MODEL,
+                        max_tokens=1000,
+                        messages=[{"role": "system", "content": SYSTEM_PROMPT}] + messages,
+                        temperature=0,
+                        response_format={"type": "json_object"},
+                    )
+                    text = resp.choices[0].message.content or ""
+                except Exception as e:
+                    # Fallback if Groq's schema validator rejects the JSON structure
+                    if "json_validate" in str(e) or "400" in str(e):
+                        resp = client.chat.completions.create(
+                            model=MODEL,
+                            max_tokens=1000,
+                            messages=[{"role": "system", "content": SYSTEM_PROMPT}] + messages,
+                            temperature=0,
+                        )
+                        text = resp.choices[0].message.content or ""
+                    else:
+                        raise e
+
+                cleaned_text = text.strip()
+                if cleaned_text.startswith("```"):
+                    start_idx = cleaned_text.find("{")
+                    end_idx = cleaned_text.rfind("}")
+                    if start_idx != -1 and end_idx != -1:
+                        cleaned_text = cleaned_text[start_idx:end_idx+1]
 
                 try:
-                    data = json.loads(text)
+                    data = json.loads(cleaned_text)
                     parse_ok = True
                 except json.JSONDecodeError:
                     data = {}
@@ -231,7 +251,9 @@ def main():
             })
 
             status = "OK" if parse_ok else "PARSE FAILURE"
-            print(f"[{i+1:02d}/{len(rows)}] {row['case_id']}: {status}")
+            # Prevent print crashes on Windows console due to non-ASCII model output
+            safe_cid = row['case_id'].encode(sys.stdout.encoding, errors='replace').decode(sys.stdout.encoding)
+            print(f"[{i+1:02d}/{len(rows)}] {safe_cid}: {status}")
 
             if SLEEP_BETWEEN_CALLS > 0 and i < len(rows) - 1:
                 time.sleep(SLEEP_BETWEEN_CALLS)
