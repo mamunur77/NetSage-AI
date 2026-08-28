@@ -1,0 +1,19 @@
+# Environment variables (contains your private Groq API key!)
+.env
+
+# Python build & cache files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Scratch scripts
+scratch/
+
+# Temporary sheets/logs if any
+.env

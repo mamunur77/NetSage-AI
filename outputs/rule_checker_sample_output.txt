@@ -1,0 +1,20 @@
+NetSage AI Rule Checker — 30 cases scanned, 6 cases with at least one deterministic finding, 6 findings total.
+
+[C001]
+  - (missing_vlan) VLAN 10 is referenced but not present in the trunk's allowed-vlan range ['1-9,11-4094'].
+
+[C005]
+  - (gateway_mismatch) Configured default gateway 192.168.1.254 does not match any router interface IP found (['192.168.1.1']).
+
+[C006]
+  - (interface_down) Interface/line reporting down: 'GigabitEthernet0/1.40   192.168.40.1   administratively down'
+
+[C007]
+  - (gateway_mismatch) Configured default gateway 192.168.5.2 does not match any router interface IP found (['192.168.5.1']).
+
+[C017]
+  - (missing_route) Routing table has no entry for 192.168.3.0/24.
+
+[C020]
+  - (mask_mismatch) Evidence explicitly calls out a differing mask: /24
+
