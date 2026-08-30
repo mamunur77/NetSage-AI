@@ -9,11 +9,20 @@ __pycache__/
 .Python
 env/
 venv/
-pip-log.txt
-pip-delete-this-directory.txt
 
-# Scratch scripts
+# Scratch scripts & temp files
 scratch/
 
-# Temporary sheets/logs if any
-.env
+# IDE & dev containers
+.devcontainer/
+.vscode/
+.idea/
+
+# OS files
+Thumbs.db
+.DS_Store
+
+# Large media files (not tracked in git)
+*.mp4
+*.webp
+*.pkt
