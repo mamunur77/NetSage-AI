@@ -677,42 +677,61 @@ Gi0/1   1-9,11-4094""",
             st.error("Please paste the show-command output.")
         else:
             with st.spinner("🧠 AI is analyzing the evidence..."):
-                result = diagnose_live(symptom, show_output, api_key)
+                st.session_state["last_live_result"] = diagnose_live(symptom, show_output, api_key)
+                st.session_state["last_live_symptom"] = symptom
+                st.session_state["last_live_show"] = show_output
 
-            if "error" in result:
-                st.error(f"Error: {result['error']}")
-            else:
-                st.success("✅ Diagnosis complete!")
+    if "last_live_result" in st.session_state and st.session_state["last_live_result"]:
+        result = st.session_state["last_live_result"]
+        if "error" in result:
+            st.error(f"Error: {result['error']}")
+        else:
+            st.success("✅ Diagnosis complete!")
 
-                st.markdown("<div class='diagnosis-card'>", unsafe_allow_html=True)
+            st.markdown("<div class='diagnosis-card'>", unsafe_allow_html=True)
 
-                col1, col2 = st.columns(2)
-                with col1:
-                    conf = result.get("confidence", "unknown")
-                    conf_class = conf.lower() if conf.lower() in ["high", "medium", "low"] else "medium"
-                    st.markdown(f"**Confidence:** <span class='badge badge-{conf_class}'>{conf}</span>", unsafe_allow_html=True)
-                with col2:
-                    st.markdown(f"**OSI Layer:** {result.get('osi_layer', 'N/A')}")
+            col1, col2 = st.columns(2)
+            with col1:
+                conf = result.get("confidence", "unknown")
+                conf_class = conf.lower() if conf.lower() in ["high", "medium", "low"] else "medium"
+                st.markdown(f"**Confidence:** <span class='badge badge-{conf_class}'>{conf}</span>", unsafe_allow_html=True)
+            with col2:
+                st.markdown(f"**OSI Layer:** {result.get('osi_layer', 'N/A')}")
 
-                st.markdown(f"### 🔍 Root Cause")
-                st.markdown(f"> {result.get('root_cause', 'N/A')}")
+            st.markdown(f"### 🔍 Root Cause")
+            st.markdown(f"> {result.get('root_cause', 'N/A')}")
 
-                st.markdown(f"### 📝 Evidence")
-                st.markdown(f"> {result.get('evidence', 'N/A')}")
+            st.markdown(f"### 📝 Evidence")
+            st.markdown(f"> {result.get('evidence', 'N/A')}")
 
-                st.markdown(f"### 🔧 Next Command to Confirm")
-                st.code(result.get("next_command", "N/A"), language="text")
+            st.markdown(f"### 🔧 Next Command to Confirm")
+            st.code(result.get("next_command", "N/A"), language="text")
 
-                steps = result.get("fix_steps", [])
-                if steps:
-                    st.markdown("### 🛠️ Fix Steps")
-                    for i, step in enumerate(steps, 1):
-                        st.markdown(f"**{i}.** {step}")
+            steps = result.get("fix_steps", [])
+            if steps:
+                st.markdown("### 🛠️ Fix Steps")
+                for i, step in enumerate(steps, 1):
+                    st.markdown(f"**{i}.** {step}")
 
-                st.markdown("</div>", unsafe_allow_html=True)
+            st.markdown("</div>", unsafe_allow_html=True)
 
-                with st.expander("📄 Raw JSON Response"):
-                    st.json(result)
+            with st.expander("📄 Raw JSON Response"):
+                st.json(result)
+
+            st.markdown("---")
+            st.markdown("### 🛡️ Human Oversight Gate")
+            st.markdown("Submit this AI diagnosis into the Human Review log to review, edit, or sign off on it:")
+
+            if st.button("📥 Forward to Human Review Queue", type="secondary"):
+                rev_df = load_review()
+                live_id = f"LIVE-{len(rev_df) + 1:03d}"
+                save_review_entry(
+                    live_id,
+                    "Accepted",
+                    "",
+                    f"Live query logged for symptom: {st.session_state.get('last_live_symptom', '')[:60]}"
+                )
+                st.success(f"✅ Submitted as case **{live_id}**! Navigate to the **✅ Human Review** page to edit or sign off.")
 
 
 # ── PAGE: Human Review ───────────────────────────────────────────────────────
