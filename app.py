@@ -249,6 +249,61 @@ def save_review_entry(case_id, verdict, corrected_root_cause, notes, reviewer="N
     st.cache_data.clear()
 
 
+def add_live_case_to_database(symptom: str, show_output: str, ai_result: dict) -> str:
+    """Save a live diagnosis into cases.csv, ai_responses.csv, and review_log.csv so it appears across all pages."""
+    c_df = load_cases()
+    existing_live = [str(cid) for cid in c_df["case_id"].values if str(cid).startswith("LIVE-")]
+    live_count = len(existing_live) + 1
+    new_cid = f"LIVE-{live_count:03d}"
+
+    # 1. Append to cases.csv
+    new_case = {
+        "case_id": new_cid,
+        "category": "Live-Query",
+        "symptom": symptom,
+        "topology_note": "On-demand diagnosis from web console",
+        "show_output": show_output,
+        "expected_fault": ai_result.get("root_cause", "N/A"),
+        "osi_layer": ai_result.get("osi_layer", "Layer 3"),
+        "concept_tag": "live-query",
+        "severity": "High",
+    }
+    c_df = pd.concat([c_df, pd.DataFrame([new_case])], ignore_index=True)
+    c_df.to_csv(CASES_CSV, index=False)
+
+    # 2. Append to sample_ai_responses.csv (and ai_responses.csv if exists)
+    ai_row = {
+        "case_id": new_cid,
+        "root_cause": ai_result.get("root_cause", "N/A"),
+        "osi_layer": ai_result.get("osi_layer", "Layer 3"),
+        "confidence": ai_result.get("confidence", "high"),
+        "evidence": ai_result.get("evidence", "N/A"),
+        "next_command": ai_result.get("next_command", "N/A"),
+        "fix_steps": json.dumps(ai_result.get("fix_steps", [])),
+    }
+    if SAMPLE_AI_CSV.exists():
+        ai_sample = pd.read_csv(SAMPLE_AI_CSV)
+        ai_sample = pd.concat([ai_sample, pd.DataFrame([ai_row])], ignore_index=True)
+        ai_sample.to_csv(SAMPLE_AI_CSV, index=False)
+
+    if LIVE_AI_CSV.exists():
+        ai_live = pd.read_csv(LIVE_AI_CSV)
+        ai_live = pd.concat([ai_live, pd.DataFrame([ai_row])], ignore_index=True)
+        ai_live.to_csv(LIVE_AI_CSV, index=False)
+
+    # 3. Append to review_log.csv
+    save_review_entry(
+        new_cid,
+        "Pending",
+        "",
+        f"Live query submitted: {symptom[:50]}...",
+        reviewer="Network Admin"
+    )
+
+    st.cache_data.clear()
+    return new_cid
+
+
 # ── Groq API Call ─────────────────────────────────────────────────────────────
 def get_api_key():
     """Get API key safely without crashing on missing local secrets."""
@@ -691,10 +746,12 @@ elif page == "🔍 Live Diagnose":
 
             st.markdown("---")
             if st.button("📥 Forward to Human Review Queue"):
-                rev_df = load_review()
-                live_id = f"LIVE-{len(rev_df) + 1:03d}"
-                save_review_entry(live_id, "Accepted", "", f"Live query logged for symptom: {st.session_state.get('last_live_symptom', '')[:60]}")
-                st.success(f"✅ Submitted as case **{live_id}**! Navigate to the **🌐 Console** or **📋 Case Directory** to edit or review.")
+                new_cid = add_live_case_to_database(
+                    st.session_state.get('last_live_symptom', ''),
+                    st.session_state.get('last_live_show', ''),
+                    result
+                )
+                st.success(f"✅ Submitted as case **{new_cid}**! Select **{new_cid}** in the **CASE SELECTOR** on `🌐 Console` or view it in the **📋 Case Directory** to audit and sign off.")
 
 
 # ── PAGE 4: CASE DIRECTORY ───────────────────────────────────────────────────
