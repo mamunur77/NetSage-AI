@@ -610,35 +610,51 @@ if page == "🌐 Console":
             else:
                 st.markdown(f"<div class='root-cause-box'><strong>EXPECTED FAULT:</strong><br>{c_row['expected_fault']}</div>", unsafe_allow_html=True)
 
-        # TAB 4: HUMAN GATE (Matching Friend's Interactive Review Form)
+        # TAB 4: HUMAN GATE (Interactive Human Review Approval)
         with t4:
             st.markdown("<div class='section-header'><span class='section-number'>04</span> Human Review Gate</div>", unsafe_allow_html=True)
-            st.caption("The AI does not autonomously modify network devices. A reviewer makes the final decision before any corrective action.")
+            st.caption("The AI does not autonomously modify network devices. A human reviewer must approve, edit, or reject the AI diagnosis before verification.")
 
             curr_verdict = rev_match.iloc[0]["human_verdict"] if not rev_match.empty else "Pending"
             curr_corrected = rev_match.iloc[0].get("corrected_root_cause", "") if not rev_match.empty and pd.notna(rev_match.iloc[0].get("corrected_root_cause")) else ""
             curr_notes = rev_match.iloc[0].get("reviewer_notes", "") if not rev_match.empty and pd.notna(rev_match.iloc[0].get("reviewer_notes")) else ""
 
+            if curr_verdict == "Pending":
+                st.warning("⚠️ **Human Approval Required:** Review the AI diagnosis in Tab 03, then select your verdict below to verify and unlock Tab 05.")
+            else:
+                st.success(f"✅ **Current Decision:** {curr_verdict}")
+
             verdict_opts = ["Pending", "Accepted", "Edited", "Rejected"]
             v_idx = verdict_opts.index(curr_verdict) if curr_verdict in verdict_opts else 0
 
             new_verdict = st.selectbox("Decision", verdict_opts, index=v_idx, key=f"v_select_{selected_cid}")
-            new_notes = st.text_area("Reviewer notes", value=curr_notes, placeholder="Explain the decision, correction, or verification.", key=f"v_notes_{selected_cid}", height=90)
-            new_corrected = st.text_input("Corrected Root Cause (if Edited/Rejected)", value=curr_corrected, key=f"v_corr_{selected_cid}")
+            new_notes = st.text_area("Reviewer notes", value=curr_notes, placeholder="Explain the decision, correction, or verification rationale.", key=f"v_notes_{selected_cid}", height=90)
+            new_corrected = st.text_input("Corrected Root Cause (if Edited or Rejected)", value=curr_corrected, key=f"v_corr_{selected_cid}")
             reviewer_name = st.text_input("Reviewer Name", value="Network Administrator", key=f"v_name_{selected_cid}")
 
-            if st.button("Save Human Review", type="primary", key=f"save_btn_{selected_cid}"):
+            if st.button("💾 Save Human Review & Unlock Verification", type="primary", key=f"save_btn_{selected_cid}"):
                 save_review_entry(selected_cid, new_verdict, new_corrected, new_notes, reviewer_name)
-                st.success(f"✅ Saved Human Review for case {selected_cid}!")
+                st.success(f"✅ Human Review saved for case {selected_cid}! Verdict: **{new_verdict}**. Verification steps unlocked in Tab 05.")
                 st.rerun()
 
-        # TAB 5: VERIFICATION
+        # TAB 5: VERIFICATION (Unlocked only after Human Review)
         with t5:
             st.markdown("<div class='section-header'><span class='section-number'>05</span> Reference & Verification</div>", unsafe_allow_html=True)
-            st.markdown(f"**Known Correct Ground Truth Fault:**")
-            st.markdown(f"> {c_row['expected_fault']}")
-            st.markdown("**Verification Commands:**")
-            st.code("show ip interface brief\nshow vlan brief\nshow ip route\nping <target>", language="text")
+            curr_verdict = rev_match.iloc[0]["human_verdict"] if not rev_match.empty else "Pending"
+
+            if curr_verdict == "Pending":
+                st.warning("🔒 **Verification Locked:** Human approval is required in Tab 04 before applying or verifying fixes on network devices.")
+            else:
+                st.success(f"✅ **Human Approved ({curr_verdict}):** Verified resolution instructions unlocked.")
+
+                st.markdown(f"**Verified Resolution Steps:**")
+                if curr_verdict in ["Edited", "Rejected"] and not rev_match.empty and pd.notna(rev_match.iloc[0].get("corrected_root_cause")) and str(rev_match.iloc[0].get("corrected_root_cause")).strip():
+                    st.markdown(f"> ✏️ **Human Corrected Diagnosis:** {rev_match.iloc[0]['corrected_root_cause']}")
+                else:
+                    st.markdown(f"> {c_row['expected_fault']}")
+
+                st.markdown("**CLI Verification Commands to run on device:**")
+                st.code("show ip interface brief\nshow vlan brief\nshow ip route\nping <target-ip>", language="text")
 
 
 # ── PAGE 2: DASHBOARD ────────────────────────────────────────────────────────
