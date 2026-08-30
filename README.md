@@ -5,6 +5,10 @@ networks, built for the Cisco "Applied AI + Network Troubleshooting" project.
 The AI proposes a diagnosis; a human always reviews it before anything is
 treated as fixed.
 
+[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://share.streamlit.io/)
+
+🌐 **Live Web Dashboard:** [Deploy on Streamlit Cloud](https://share.streamlit.io/) (See the [Streamlit Deployment Guide](docs/STREAMLIT_DEPLOYMENT.md) to launch your own version in minutes!)
+
 ---
 
 ## Project Structure
