@@ -523,8 +523,57 @@ elif page == "📋 Cases":
 
                 with t2:
                     st.markdown("**Deterministic Rule Scan:**")
-                    if cid in ["C001", "C005", "C006", "C007", "C017", "C020"]:
-                        st.warning(f"⚠️ Rule Checker flagged automated finding for case {cid}. Run `python scripts/rule_checker.py` to see exact details.")
+                    # Run live deterministic checks on the case's evidence
+                    import re
+                    evidence_text = str(row['show_output']) + "\n" + str(row['symptom']) + "\n" + str(row['topology_note'])
+                    rule_findings = []
+
+                    # 1. Interface down check
+                    for m in re.finditer(r"^(?P<iface>\S+).{0,40}?\b(administratively down|down)\b", evidence_text, re.M):
+                        line = m.group(0).strip()
+                        if "Status" not in line and "Protocol" not in line:
+                            rule_findings.append(f"interface_down: Interface/line reporting down: '{line}'")
+
+                    # 2. Gateway mismatch check
+                    gateways = re.findall(r"Default Gateway:\s*(\d{1,3}(?:\.\d{1,3}){3})", evidence_text)
+                    iface_ips = [m[1] for m in re.findall(r"^(?P<iface>\S+)\s+(?P<ip>\d{1,3}(?:\.\d{1,3}){3})\s+(?P<status>up|down|administratively down)\s+(?P<proto>up|down)", evidence_text, re.M)]
+                    for gw in gateways:
+                        if iface_ips and gw not in iface_ips:
+                            rule_findings.append(f"gateway_mismatch: Configured default gateway {gw} does not match any router interface IP found ({iface_ips}).")
+
+                    # 3. Missing VLAN check
+                    mentioned = {int(v) for v in re.findall(r"VLAN\s?(\d+)", evidence_text, re.I)}
+                    trunks = re.findall(r"Gi\S*\s+([\d,\-]+)\s*$", evidence_text, re.M)
+                    for vid in mentioned:
+                        if trunks:
+                            in_trunk = False
+                            for t_str in trunks:
+                                for part in t_str.split(","):
+                                    part = part.strip()
+                                    if "-" in part:
+                                        lo, hi = part.split("-")
+                                        if int(lo) <= vid <= int(hi):
+                                            in_trunk = True
+                                    elif part.isdigit() and int(part) == vid:
+                                        in_trunk = True
+                            if not in_trunk:
+                                rule_findings.append(f"missing_vlan: VLAN {vid} is referenced but omitted from trunk allowed-vlan range {trunks}.")
+
+                    # 4. Missing route check
+                    if "(no route to" in evidence_text:
+                        m_route = re.search(r"\(no route to (\d{1,3}(?:\.\d{1,3}){3}/\d{1,2})\)", evidence_text)
+                        if m_route:
+                            rule_findings.append(f"missing_route: Routing table has no entry for {m_route.group(1)}.")
+
+                    # 5. Mask mismatch check
+                    masks = re.findall(r"Subnet Mask:\s*(\d{1,3}(?:\.\d{1,3}){3})", evidence_text)
+                    prose_masks = re.findall(r"mask\s*/(\d{1,2})", evidence_text, re.I)
+                    if masks and prose_masks:
+                        rule_findings.append(f"mask_mismatch: Evidence explicitly calls out a differing mask: /{prose_masks[0]}")
+
+                    if rule_findings:
+                        for finding in rule_findings:
+                            st.warning(f"⚠️ **Automated Rule Match:** {finding}")
                     else:
                         st.info("ℹ️ No simple configuration syntax error triggered; case requires cognitive LLM analysis.")
 
