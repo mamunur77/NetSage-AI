@@ -75,6 +75,24 @@ AI["C003"]["evidence"] = "Core switch trunk shows native vlan 1 while SW1 shows 
 AI["C003"]["next_command"] = "show interfaces trunk on both switches"
 AI["C003"]["fix_steps"] = ["Change core switch native VLAN to 15", "Verify no more native VLAN mismatch warnings"]
 
+AI["C033"]["root_cause"] = "SW1 PortFast is globally disabled, causing temporary link blocking on trunk ports."
+AI["C033"]["confidence"] = "medium"
+AI["C033"]["evidence"] = "Spanning-tree portfast trunk was misread as missing global portfast configuration."
+AI["C033"]["next_command"] = "show spanning-tree summary"
+AI["C033"]["fix_steps"] = ["Enable spanning-tree portfast default globally", "Re-test link initialization"]
+
+AI["C037"]["root_cause"] = "R1 and R2 have mismatched HSRP priority values causing active router contention."
+AI["C037"]["confidence"] = "medium"
+AI["C037"]["evidence"] = "Both routers show active state; AI assumed default priority values were in conflict."
+AI["C037"]["next_command"] = "show standby brief"
+AI["C037"]["fix_steps"] = ["Adjust standby priority on R2", "Verify single active router"]
+
+AI["C046"]["root_cause"] = "Dest Subnet 172.20.0.0/16 is unroutable due to missing default gateway on R1."
+AI["C046"]["confidence"] = "low"
+AI["C046"]["evidence"] = "High CPU and packet drop misdiagnosed as missing gateway rather than mutual static routes."
+AI["C046"]["next_command"] = "show ip route 0.0.0.0"
+AI["C046"]["fix_steps"] = ["Add default gateway to R1", "Verify CPU utilization drops"]
+
 SAMPLE_RESP_CSV.parent.mkdir(parents=True, exist_ok=True)
 with open(SAMPLE_RESP_CSV, "w", newline="", encoding="utf-8") as f:
     fields = ["case_id", "root_cause", "osi_layer", "confidence", "evidence", "next_command", "fix_steps"]
@@ -93,6 +111,9 @@ CORRECTIONS = {
     "C023": ("Rejected", "AI's 'missing permit' theory is wrong -- the real problem is the same ACL applied in both the in and out direction on one interface, so return traffic hits the implicit deny regardless of permit lines. Rewrote root_cause and fix_steps to remove the erroneous outbound ACL application."),
     "C029": ("Edited", "AI under-classified this as a 'minor connectivity misconfiguration' at low confidence. It's a security-relevant VLAN isolation failure (guest traffic reaching internal VLAN 10) and should be flagged High severity, not treated as a generic Wi-Fi glitch. Corrected confidence to high and added a security note to fix_steps."),
     "C003": ("Edited", "AI assumed the core switch's native VLAN was the misconfigured side. Design docs confirm SW1's uplink should use native VLAN 1 to match the rest of the campus trunk standard, so SW1 (native vlan 15) is actually the outlier. Corrected which side to change."),
+    "C033": ("Rejected", "AI misdiagnosed PortFast trunk loop as missing global PortFast. Enabling PortFast globally would not stop the loop; the fix is to remove 'spanning-tree portfast trunk' from uplink Gi0/2."),
+    "C037": ("Edited", "AI blamed HSRP priorities, but priority doesn't cause split-brain. The actual cause is blocked HSRP hellos or auth mismatch preventing peers from seeing each other. Corrected root_cause to hello/auth filtering."),
+    "C046": ("Rejected", "AI claimed default gateway was missing. The actual fault is a two-way static routing loop between R1 and R2 causing TTL expiration and CPU spikes. Corrected root_cause to routing loop removal."),
 }
 
 with open(REVIEW_LOG_CSV, "w", newline="", encoding="utf-8") as f:

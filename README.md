@@ -16,11 +16,11 @@ treated as fixed.
 ```
 CISCO/
 ├── README.md
-├── requirements.txt          ← pip dependencies (groq, openpyxl)
+├── requirements.txt          ← pip dependencies (groq, openpyxl, streamlit)
 ├── .env.example              ← API key template — copy to .env
 │
 ├── data/                     ← all input & generated data
-│   ├── cases.csv             ← 30 troubleshooting cases
+│   ├── cases.csv             ← 50 troubleshooting cases
 │   ├── review_log.csv        ← human oversight log
 │   └── sample_ai_responses.csv ← pre-generated demo AI output
 │
@@ -33,13 +33,13 @@ CISCO/
 │   └── diagnose_prompt.md    ← system prompt + JSON schema + few-shot examples
 │
 ├── docs/
-│   └── responsible_ai_log.md ← 6 corrected cases, patterns, retro notes
+│   └── responsible_ai_log.md ← 9 corrected cases, patterns, retro notes
 │
 └── scripts/
     ├── ai_diagnose.py        ← calls Groq API, writes outputs/ai_responses.csv
     ├── rule_checker.py       ← deterministic checks (no API key needed)
     ├── build_dashboard.py    ← generates outputs/dashboard.xlsx
-    ├── generate_cases.py     ← regenerates data/cases.csv (edit if needed)
+    ├── generate_cases.py     ← regenerates data/cases.csv (50 cases)
     └── generate_ai_and_review.py ← regenerates demo data/sample_ai_responses.csv
 ```
 
@@ -64,10 +64,9 @@ $env:GROQ_API_KEY = "gsk_your_key_here"
 python scripts/rule_checker.py
 ```
 
-### 4. Run the live AI diagnosis
+### 4. Launch the Streamlit Web App
 ```bash
-python scripts/ai_diagnose.py
-# → writes outputs/ai_responses.csv
+python -m streamlit run app.py
 ```
 
 ### 5. Fill in the human review
@@ -85,7 +84,7 @@ python scripts/build_dashboard.py
 ## How the Pipeline Works
 
 ```
-data/cases.csv (30 cases)
+data/cases.csv (50 cases)
     │
     ├──► scripts/rule_checker.py ──────────────────────► Console output (deterministic flags)
     │
@@ -113,11 +112,11 @@ data/cases.csv (30 cases)
 
 | File | Rows | Description |
 |---|---|---|
-| `data/cases.csv` | 30 | Troubleshooting cases across VLAN, Gateway, DHCP, DNS, Routing, ACL, NAT, Wireless |
-| `data/review_log.csv` | 30 | Accepted/Edited/Rejected verdicts + reviewer notes |
-| `data/sample_ai_responses.csv` | 30 | Pre-generated demo output (used without an API key) |
+| `data/cases.csv` | 50 | Troubleshooting cases across VLAN, Gateway, DHCP, DNS, Routing, ACL, NAT, Wireless, STP, EtherChannel, HSRP, IPv6, Security, QoS |
+| `data/review_log.csv` | 50 | Accepted/Edited/Rejected verdicts + reviewer notes |
+| `data/sample_ai_responses.csv` | 50 | Pre-generated demo output (used without an API key) |
 
-**AI performance (demo run):** 80% Accepted · 16.7% Edited · 3.3% Rejected
+**AI performance (demo run):** 82% Accepted · 12% Edited · 6% Rejected (9 corrected cases in Responsible AI log)
 
 ---
 

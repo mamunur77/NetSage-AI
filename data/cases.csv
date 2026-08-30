@@ -209,3 +209,140 @@ AP2# show wlan config | include channel
 Channel: 6
 
 Site survey: AP1 and AP2 coverage cells overlap by ~40%","AP1 and AP2 use the same 2.4GHz channel (6) in overlapping coverage areas, causing co-channel interference that degrades signal quality and connection stability at the cell edge -- an RF design issue rather than an authentication or VLAN fault.",Layer 1/2,wireless-co-channel-interference,Medium
+C031,STP,Network performance drops severely across the entire campus switch block due to massive frame flooding.,"SW1, SW2, SW3 in a triangle topology; SW3 was expected to be Root Bridge but has default priority.","SW1# show spanning-tree vlan 1
+VLAN0001
+  Spanning tree enabled protocol ieee
+  Root ID    Priority    32769
+             Address     0001.C467.1111
+             This bridge is the root
+
+SW3# show spanning-tree vlan 1
+VLAN0001
+  Root ID    Priority    32769
+             Address     0001.C467.1111","Core switch SW3 has default STP priority 32768, causing edge switch SW1 with a lower MAC address to win the Root election; suboptimal root placement causes excessive frame flooding across access uplinks.",Layer 2,stp-root-bridge-election,High
+C032,STP,"An access port connected to an unmanaged hub repeatedly transitions between Forwarding and Blocking, causing packet loss.",SW1 Fa0/10 connects to a user hub; BPDU Guard was enabled on the port.,"SW1# show interfaces fa0/10 status
+Port      Name               Status       Vlan       Duplex  Speed Type
+Fa0/10                       err-disabled 10         auto    auto  10/100BaseTX
+
+SW1# show logging | include ErrDisable
+%PM-4-ERR_DISABLE: bpduguard error detected on Fa0/10, putting Fa0/10 in err-disable state",BPDU Guard put Fa0/10 into err-disabled state after detecting rogue BPDUs from an unmanaged switch/hub plugged into a PortFast-enabled access port.,Layer 2,stp-bpduguard-errdisable,Medium
+C033,STP,Hosts on VLAN 20 experience broadcast storms after a new redundant link was added between SW1 and SW2.,SW1 Gi0/2 -- SW2 Gi0/2 link added; PortFast was enabled globally or on trunk interface.,"SW1# show run interface gi0/2
+interface GigabitEthernet0/2
+ switchport mode trunk
+ spanning-tree portfast trunk","PortFast trunk was enabled on uplink Gi0/2, bypassing Listening and Learning states upon link up and causing an immediate temporary Layer 2 switching loop.",Layer 2,stp-portfast-loop,Critical
+C034,EtherChannel,"EtherChannel link between SW1 and SW2 shows Port-Channel 1 down, and individual member links are suspended.",Port-Channel 1 bundles Fa0/23 and Fa0/24; LACP protocol configured.,"SW1# show etherchannel summary
+Group  Port-channel  Protocol    Ports
+------+-------------+-----------+-----------------------------------------------
+1      Po1(SD)       LACP        Fa0/23(s) Fa0/24(s)
+
+SW1# show run interface fa0/23
+interface FastEthernet0/23
+ channel-group 1 mode active
+ speed 100
+ duplex full
+
+SW2# show run interface fa0/23
+interface FastEthernet0/23
+ channel-group 1 mode passive
+ speed 10
+ duplex full","Speed mismatch on member interface Fa0/23 (SW1 is 100Mbps, SW2 is 10Mbps) prevents LACP bundling, causing member ports to be suspended.",Layer 2,etherchannel-misconfig,High
+C035,EtherChannel,Traffic distribution across a 4-link EtherChannel is heavily skewed; one link carries 90% of all traffic while others sit idle.,SW1 Po1 carries inter-subnet traffic routed by a single upstream core router MAC.,"SW1# show etherchannel load-balance
+EtherChannel Load-Balancing Operational State (src-mac):
+Global LB Method: src-mac","EtherChannel load-balancing hash is set to src-mac on a switch where all egress traffic originates from the same default gateway MAC, preventing traffic distribution across bundle links.",Layer 2,etherchannel-load-balance,Medium
+C036,HSRP,"Hosts on VLAN 10 use R1 as active gateway, but when R1's WAN link drops, traffic still routes to R1 instead of failing over to R2.","R1 and R2 configured with HSRP group 10 for 192.168.10.1; R1 priority 110, R2 priority 100.","R1# show standby vlan 10
+Vlan10 - Group 10
+  State is Active
+  Virtual IP address is 192.168.10.1
+  Priority 110 (configured 110)
+  Track interface Serial0/0/0 decrements 20
+  (Preemption disabled)","HSRP preempt is not enabled on R2. Even though R1's tracked WAN interface failed and reduced its priority to 90 (below R2's 100), R2 will not take over active status without preempt enabled.",Layer 3,hsrp-preempt-missing,High
+C037,HSRP,"Both R1 and R2 claim to be the Active HSRP gateway for VLAN 30, resulting in duplicate IP warnings and MAC address flapping on the switch.",R1 and R2 running HSRP group 30 on G0/0.30.,"R1# show standby vlan 30
+Vlan30 - Group 30
+  State is Active
+  Virtual IP address is 192.168.30.1
+  Active router is local
+
+R2# show standby vlan 30
+Vlan30 - Group 30
+  State is Active
+  Virtual IP address is 192.168.30.1
+  Active router is local
+
+SW1# show logging | include Flapping
+%SW_MATM-4-MACFLAP_NOTIF: Host 0000.0c07.ac1e in vlan 30 is flapping between port Gi0/1 and port Gi0/2","HSRP hellos between R1 and R2 are blocked (or subinterfaces use mismatched HSRP authentication keys), leading both routers to believe the peer is dead and concurrently claim Active status.",Layer 3,hsrp-split-brain,Critical
+C038,IPv6,IPv6-enabled workstations can ping local IPv6 link-local addresses but cannot reach external IPv6 global unicast destinations.,R1 G0/0 configured with IPv6 address 2001:db8:1::1/64.,"R1# show run | include ipv6
+ipv6 unicast-routing (MISSING)
+interface GigabitEthernet0/0
+ ipv6 address 2001:DB8:1::1/64
+
+PC> ipconfig /all
+IPv6 Address: 2001:db8:1::100
+Default Gateway: fe80::1","Global 'ipv6 unicast-routing' is missing on router R1; without it, R1 acts only as an IPv6 end-host and will not forward IPv6 packets between interfaces or send Router Advertisements.",Layer 3,ipv6-unicast-routing-disabled,High
+C039,IPv6,Clients fail to acquire an IPv6 address automatically via SLAAC on VLAN 50.,R1 G0/0.50 configured for IPv6; Router Advertisements suppressed.,"R1# show run interface g0/0.50
+interface GigabitEthernet0/0.50
+ encapsulation dot1Q 50
+ ipv6 address 2001:DB8:50::1/64
+ ipv6 nd suppress-ra","Router Advertisements are explicitly suppressed on G0/0.50 with 'ipv6 nd suppress-ra', preventing SLAAC clients from learning the network prefix and default gateway.",Layer 3,ipv6-slaac-ra-suppressed,Medium
+C040,Security,Connecting a new user desktop to switch port Fa0/12 immediately causes the port link LED to turn amber and shut down.,Port security enabled on Fa0/12 with maximum 1 MAC address.,"SW1# show port-security interface fa0/12
+Port Security              : Enabled
+Port Status                : Secure-shutdown
+Violation Mode             : Shutdown
+Maximum MAC Addresses      : 1
+Total MAC Addresses        : 1
+Configured MAC Addresses   : 1 (0011.2233.4455)
+Last Source Address:Vlan   : 00aa.bbcc.ddee:10","Port security violation occurred on Fa0/12: incoming MAC address (00aa.bbcc.ddee) did not match the configured sticky MAC (0011.2233.4455), triggering the shutdown action.",Layer 2,port-security-violation,Medium
+C041,Security,"Network administrator cannot SSH into R1 from the Management VLAN 40, getting 'Connection refused'.",R1 VTY lines configured for remote management access.,"R1# show run | section line vty
+line vty 0 4
+ transport input telnet
+ login local","VTY lines on R1 are configured with 'transport input telnet' instead of 'transport input ssh' (or 'all'), blocking encrypted SSH connection attempts on TCP port 22.",Layer 7,ssh-transport-disabled,Medium
+C042,Security,Switch management access fails for all admin credentials when authentication server is unreachable.,SW1 configured to authenticate VTY logins via TACACS+.,"SW1# show run | include aaa
+aaa authentication login default group tacacs+
+(no local fallback configured)
+
+SW1# ping 10.40.1.5
+Request timed out.","AAA authentication is configured to use TACACS+ only without a 'local' fallback; when the TACACS+ server 10.40.1.5 is unreachable, admins are locked out.",Layer 7,aaa-missing-local-fallback,High
+C043,QoS,VoIP phone calls experience severe jitter and audio clipping whenever large file downloads occur over the WAN link.,R1 WAN interface G0/1 has no queuing strategy configured; default FIFO queue drops voice packets during congestion.,"R1# show interface g0/1 | include Queueing
+Input queue: 0/75/0/0 (size/max/drops/flushes); Total output drops: 1420
+Queueing strategy: fifo
+
+R1# show policy-map interface g0/1
+(no policy-map attached)",No QoS policy-map (LLQ / CBWFQ) is applied on WAN interface G0/1; default FIFO queuing drops latency-sensitive VoIP packets under link saturation.,Layer 3/4,qos-missing-voip-llq,Medium
+C044,QoS,Differentiated Services Code Point (DSCP) EF markings set by IP phones are wiped out at the access switch.,SW1 Fa0/5 access port connects to IP Phone.,"SW1# show run interface fa0/5
+interface FastEthernet0/5
+ mls qos trust cos (MISSING)
+ no mls qos trust","Access switch port Fa0/5 does not trust CoS/DSCP markings from the connected IP phone ('no mls qos trust'), overwriting incoming voice packets to DSCP 0 (Best Effort).",Layer 2/3,qos-untrusted-boundary,Low
+C045,VLAN,Inter-VLAN routing for VLAN 60 fails completely on router-on-a-stick topology while VLAN 10 and 20 work fine.,R1 G0/0.60 subinterface configured for VLAN 60 gateway.,"R1# show run interface g0/0.60
+interface GigabitEthernet0/0.60
+ encapsulation dot1Q 65
+ ip address 192.168.60.1 255.255.255.0","Subinterface G0/0.60 has encapsulation mismatched to dot1Q 65 instead of dot1Q 60, causing tagged frames from VLAN 60 to be ignored by the subinterface.",Layer 2/3,roas-vlan-id-mismatch,High
+C046,Routing,A router's CPU utilization spikes to 100% and traffic between two internal subnets is dropped due to TTL expired.,R1 and R2 have static routes for 172.20.0.0/16 pointing to each other.,"R1# show ip route 172.20.0.0
+S   172.20.0.0/16 [1/0] via 10.0.0.2 (R2)
+
+R2# show ip route 172.20.0.0
+S   172.20.0.0/16 [1/0] via 10.0.0.1 (R1)","Routing loop between R1 and R2 for destination network 172.20.0.0/16; both routers point to each other as the next-hop, causing packets to bounce until TTL expires.",Layer 3,routing-loop-static,Critical
+C047,NAT,Web server in DMZ (192.168.100.10) is unreachable from the internet on public IP 203.0.113.50.,Static NAT configured on R1.,"R1# show ip nat translations
+Pro Inside global      Inside local       Outside local      Outside global
+tcp 203.0.113.50:80    192.168.100.10:808 ---                ---
+
+R1# show run | include ip nat inside source
+ip nat inside source static tcp 192.168.100.10 808 203.0.113.50 80 extendable","Static NAT rule maps public port 80 to internal port 808 instead of port 80 on the web server, causing external HTTP requests to hit a closed port.",Layer 3/4,nat-static-port-mismatch,High
+C048,ACL,"Admin host 10.40.1.100 cannot access web management on switch SW1, but pings succeed.",SW1 HTTP server enabled with access-class 50.,"SW1# show run | include ip http
+ip http server
+ip http access-class 50
+
+SW1# show access-lists 50
+Standard IP access list 50
+ 10 permit 10.40.2.0, wildcard bits 0.0.0.255","Standard ACL 50 protecting the switch HTTP server permits 10.40.2.0/24 but omits admin subnet 10.40.1.0/24, denying web access while pinging (ICMP) remains unaffected.",Layer 7,acl-http-access-class-denied,Medium
+C049,Routing,BGP session between R1 (AS 65001) and ISP router (AS 65002) stays in 'Active' or 'Idle' state indefinitely.,R1 eBGP peer configured over multi-hop loopback interfaces.,"R1# show ip bgp summary
+Neighbor        V    AS MsgRcvd MsgSent   TblVer  InQ OutQ Up/Down  State/PfxRcd
+198.51.100.1    4 65002       0       0        1    0    0 00:15:22 Active
+
+R1# show run | section router bgp
+router bgp 65001
+ neighbor 198.51.100.1 remote-as 65002
+ (ebgp-multihop missing)","eBGP peer 198.51.100.1 is multiple hops away, but 'neighbor 198.51.100.1 ebgp-multihop' is not configured; default TTL of 1 drops eBGP packets before reaching the peer.",Layer 3/4,bgp-ebgp-multihop-missing,High
+C050,VLAN,Laptops connected to IP Phone PC ports drop off the network whenever the phone reboots.,SW1 Fa0/9 configured for voice and data VLANs.,"SW1# show run interface fa0/9
+interface FastEthernet0/9
+ switchport mode access
+ switchport access vlan 10
+ switchport voice vlan 10",Data VLAN and Voice VLAN on Fa0/9 are both set to VLAN 10. Voice and data must be on separate VLANs to allow proper 802.1Q tagging and prioritization.,Layer 2,vlan-voice-data-same-vlan,Low

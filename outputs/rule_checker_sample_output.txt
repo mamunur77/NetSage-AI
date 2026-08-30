@@ -1,4 +1,4 @@
-NetSage AI Rule Checker — 30 cases scanned, 6 cases with at least one deterministic finding, 6 findings total.
+NetSage AI Rule Checker — 50 cases scanned, 6 cases with at least one finding, 6 findings total.
 
 [C001]
   - (missing_vlan) VLAN 10 is referenced but not present in the trunk's allowed-vlan range ['1-9,11-4094'].
